@@ -1,0 +1,35 @@
+name: Free RDP with ngrok
+
+on: 
+  push:
+    branches:
+      - main
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+    - name: Install ngrok and Setup RDP
+      run: |
+        # Download ngrok
+        Invoke-WebRequest -Uri "https://bin.equinox.io/c/bNyj1mQVY4c/ngrok-stable-windows-amd64.zip" -OutFile "ngrok.zip"
+        Expand-Archive ngrok.zip -DestinationPath $env:USERPROFILE\ngrok
+
+        # Enable RDP
+        powershell New-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\Terminal Server' -Name "fDenyTSConnections" -Value 0 -PropertyType DWORD -Force
+        powershell Enable-WindowsOptionalFeature -Online -FeatureName Microsoft-Hyper-V-All
+        netsh advfirewall firewall set rule group="remote desktop" new enable=Yes
+
+        # Start RDP
+        powershell Start-Service -Name sshd
+
+    - name: Run ngrok
+      run: |
+        # Replace YOUR_AUTHTOKEN with your ngrok Authtoken
+        $env:NGROK_AUTH_TOKEN = "2r6Y8Z3o5iPMpttGcCLWp2OBL5w_2KSyxpL99PUZgBRQu7tg5"
+        $env:NGROK_REGION = "us"  # Replace with your region if needed (e.g., eu, ap)
+        & $env:USERPROFILE\ngrok\ngrok.exe authtoken $env:NGROK_AUTH_TOKEN
+        & $env:USERPROFILE\ngrok\ngrok.exe tcp 3389 > ngrok-log.txt &
+        Start-Sleep -Seconds 5
+        Get-Content ngrok-log.txt | Select-String -Pattern "tcp://" | ForEach-Object { Write-Host $_ }
